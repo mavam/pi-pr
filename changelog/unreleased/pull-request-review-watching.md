@@ -27,7 +27,8 @@ request number, unresolved review threads, and CI status.
  7  󰅺3  
 ```
 
-Watching swaps the review-thread icon for an accent-colored eye.
+Watching swaps the review-thread icon for an accent-colored eye. Widgets dim
+when GitHub state is degraded, and invalid destinations are left unlinked.
 
 Other extensions can consume the same data without shelling out to `gh`:
 `pi-pr/api` exposes the `pi-pr:state` and `pi-pr:feedback` event contracts.

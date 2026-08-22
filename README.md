@@ -47,8 +47,8 @@ status:
 ```
 
 The pull request icon dims for drafts and turns accent-colored when auto-merge
-is enabled. While `/pr watch` is active, an eye replaces the review-thread
-icon:
+is enabled. All pull request widgets dim while GitHub state is degraded. While
+`/pr watch` is active, an eye replaces the review-thread icon:
 
 ```text
  7  3  

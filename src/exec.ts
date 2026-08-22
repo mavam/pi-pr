@@ -57,10 +57,10 @@ export async function gh(
   return exec(pi, "gh", args, cwd, GITHUB_TIMEOUT_MS);
 }
 
-/** Distinguish a broken GitHub setup from an ordinary failed lookup. */
+/** Distinguish failed GitHub authentication from other command failures. */
 export function isAuthFailure(result: ExecResult): boolean {
   if (result.code === 0) return false;
-  return /gh auth login|not logged into|authentication|bad credentials|command not found|ENOENT/i.test(
+  return /gh auth login|not logged into|authentication|bad credentials/i.test(
     result.stderr,
   );
 }

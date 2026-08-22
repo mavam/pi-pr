@@ -13,12 +13,6 @@ const NUMBER_WIDGET_ID = "pi-pr.number";
 const THREADS_WIDGET_ID = "pi-pr.review-threads";
 const CI_WIDGET_ID = "pi-pr.ci";
 
-export const FOOTER_WIDGET_IDS = [
-  NUMBER_WIDGET_ID,
-  THREADS_WIDGET_ID,
-  CI_WIDGET_ID,
-];
-
 type Glyphs = Record<"nerd" | "emoji" | "unicode" | "ascii", string>;
 
 const GLYPHS = {
@@ -60,15 +54,12 @@ const GLYPHS = {
   },
 } satisfies Record<string, Glyphs>;
 
-/** Placeholder text for icon-only widgets; the footer hides empty content. */
-const ICON_ONLY = "\u200b";
-
 interface WidgetSpec {
   id: string;
   label: string;
   description: string;
   text: string;
-  href: string;
+  href?: string;
   glyphs: Glyphs;
   iconColor: "text" | "accent" | "muted" | "dim" | "success" | "warning" | "error";
   position: number;
@@ -80,11 +71,18 @@ export interface FooterPublisher {
   dispose(): void;
 }
 
+function safeHref(value: string): string | undefined {
+  return /^https?:\/\/[^\s\u0000-\u001f\u007f-\u009f]+$/u.test(value)
+    ? value
+    : undefined;
+}
+
 function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
   const pullRequest = state.pullRequest;
   if (!pullRequest || pullRequest.lifecycle === "closed") return [];
 
-  const url = pullRequest.target.url;
+  const degraded = state.health !== "ok";
+  const url = safeHref(pullRequest.target.url);
   const widgets: WidgetSpec[] = [
     {
       id: NUMBER_WIDGET_ID,
@@ -93,13 +91,15 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       text: `${pullRequest.target.number}`,
       href: url,
       glyphs: GLYPHS.pullRequest,
-      iconColor: pullRequest.isDraft
+      iconColor: degraded
         ? "dim"
-        : pullRequest.lifecycle === "merged"
-          ? "muted"
-          : pullRequest.autoMergeEnabled
-            ? "accent"
-            : "text",
+        : pullRequest.isDraft
+          ? "dim"
+          : pullRequest.lifecycle === "merged"
+            ? "muted"
+            : pullRequest.autoMergeEnabled
+              ? "accent"
+              : "text",
       position: 3,
     },
   ];
@@ -112,10 +112,14 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       text:
         pullRequest.unresolvedThreadCount > 0
           ? `${pullRequest.unresolvedThreadCount}`
-          : ICON_ONLY,
+          : "",
       href: url,
       glyphs: pullRequest.watching ? GLYPHS.watching : GLYPHS.reviewThreads,
-      iconColor: pullRequest.watching ? "accent" : "text",
+      iconColor: degraded
+        ? "dim"
+        : pullRequest.watching
+          ? "accent"
+          : "text",
       position: 4,
     });
   }
@@ -125,16 +129,17 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       id: CI_WIDGET_ID,
       label: "PR CI status",
       description: "Shows the CI status for the current pull request",
-      text: ICON_ONLY,
-      href: pullRequest.ci.url,
+      text: "",
+      href: safeHref(pullRequest.ci.url),
       glyphs:
         pullRequest.ci.state === "failed"
           ? GLYPHS.ciFailed
           : pullRequest.ci.state === "running"
             ? GLYPHS.ciRunning
             : GLYPHS.ciOkay,
-      iconColor:
-        pullRequest.ci.state === "failed"
+      iconColor: degraded
+        ? "dim"
+        : pullRequest.ci.state === "failed"
           ? "error"
           : pullRequest.ci.state === "running"
             ? "warning"
@@ -178,7 +183,7 @@ export function createFooterPublisher(pi: ExtensionAPI): FooterPublisher {
           content: {
             type: "text",
             text: widget.text,
-            href: widget.href,
+            ...(widget.href ? { href: widget.href } : {}),
           },
           icon: { glyphs: widget.glyphs, color: widget.iconColor },
           layout: { row: 1, position: widget.position, align: "left" },

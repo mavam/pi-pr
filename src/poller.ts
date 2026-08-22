@@ -116,7 +116,11 @@ export function createPoller(options: PollerOptions): Poller {
       ...(pullRequest ? { pullRequest } : {}),
       updatedAt: Date.now(),
     };
-    onState(state);
+    try {
+      onState(state);
+    } catch {
+      // State consumers must not break the polling loop.
+    }
   };
 
   const schedule = (health: PullRequestHealth): void => {
@@ -138,6 +142,7 @@ export function createPoller(options: PollerOptions): Poller {
     if (!active || cycleRunning) return;
     cycleRunning = true;
     const pollCwd = cwd;
+    let nextHealth: PullRequestHealth = state?.health ?? "ok";
 
     try {
       const nextBranch = await currentBranch(pi, pollCwd);
@@ -152,8 +157,8 @@ export function createPoller(options: PollerOptions): Poller {
         ciStatus = undefined;
         unresolvedThreadCount = 0;
         failures = 0;
-        publish("ok");
-        schedule("ok");
+        nextHealth = "ok";
+        publish(nextHealth);
         return;
       }
 
@@ -162,11 +167,8 @@ export function createPoller(options: PollerOptions): Poller {
       repository = result.repository;
       if (result.authFailed || result.failed) {
         failures += 1;
-        const health: PullRequestHealth = result.authFailed
-          ? "unauthenticated"
-          : "error";
-        publish(health);
-        schedule(health);
+        nextHealth = result.authFailed ? "unauthenticated" : "error";
+        publish(nextHealth);
         return;
       }
 
@@ -174,8 +176,8 @@ export function createPoller(options: PollerOptions): Poller {
       if (!nextPullRequest) {
         clearTarget();
         failures = 0;
-        publish("ok");
-        schedule("ok");
+        nextHealth = "ok";
+        publish(nextHealth);
         return;
       }
       if (discovered?.target.url !== nextPullRequest.target.url) clearTarget();
@@ -196,15 +198,13 @@ export function createPoller(options: PollerOptions): Poller {
 
       if (!threads.value) {
         failures += 1;
-        const health: PullRequestHealth = threads.authFailed
-          ? "unauthenticated"
-          : "error";
-        publish(health);
-        schedule(health);
+        nextHealth = threads.authFailed ? "unauthenticated" : "error";
+        publish(nextHealth);
         return;
       }
 
       failures = 0;
+      nextHealth = "ok";
       ciStatus = ci;
       unresolvedThreadCount = threads.value.unresolvedThreadCount;
       if (threads.value.lifecycle) discovered.lifecycle = threads.value.lifecycle;
@@ -216,16 +216,26 @@ export function createPoller(options: PollerOptions): Poller {
         const external = fresh.filter(
           (item) => !snapshot.viewerLogin || item.author !== snapshot.viewerLogin,
         );
-        if (external.length > 0) onFeedback(target, external);
+        if (external.length > 0) {
+          try {
+            onFeedback(target, external);
+          } catch {
+            // Feedback consumers must not break the polling loop.
+          }
+        }
       }
 
       // Watching a pull request ends when the pull request does.
       if (watching && discovered.lifecycle !== "open") watching = false;
 
-      publish("ok");
-      schedule("ok");
+      publish(nextHealth);
+    } catch {
+      failures += 1;
+      nextHealth = "error";
+      publish(nextHealth);
     } finally {
       cycleRunning = false;
+      schedule(nextHealth);
     }
   };
 

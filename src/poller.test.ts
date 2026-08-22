@@ -111,7 +111,10 @@ function fakePi(scenario: Scenario): ExtensionAPI {
   } as unknown as ExtensionAPI;
 }
 
-function createHarness(scenario: Scenario): {
+function createHarness(
+  scenario: Scenario,
+  afterState?: (state: PullRequestStateEvent) => void,
+): {
   poller: Poller;
   states: PullRequestStateEvent[];
   runNextCycle(): void;
@@ -130,7 +133,10 @@ function createHarness(scenario: Scenario): {
   };
   const poller = createPoller({
     pi: fakePi(scenario),
-    onState: (state) => states.push(state),
+    onState: (state) => {
+      states.push(state);
+      afterState?.(state);
+    },
     onFeedback: () => {},
     timers,
   });
@@ -188,6 +194,24 @@ test("poll cycles refresh pull request metadata", async () => {
       { isDraft: true, autoMergeEnabled: true, headRefOid: "oid-2" },
     ],
   );
+  harness.poller.stop();
+});
+
+test("unexpected callback errors do not stop the timer chain", async () => {
+  let shouldThrow = true;
+  const harness = createHarness(scenario(), () => {
+    if (shouldThrow) {
+      shouldThrow = false;
+      throw new Error("consumer failed");
+    }
+  });
+  harness.poller.start("/repo");
+  await waitForStates(harness.states, 1);
+
+  harness.runNextCycle();
+  await waitForStates(harness.states, 2);
+
+  assert.equal(harness.states[1]?.health, "ok");
   harness.poller.stop();
 });
 

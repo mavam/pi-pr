@@ -17,12 +17,21 @@ interface WidgetMessage {
 
 function fakePi(): { pi: ExtensionAPI; messages: WidgetMessage[] } {
   const messages: WidgetMessage[] = [];
+  const listeners = new Map<string, Set<(payload: unknown) => void>>();
   const pi = {
     events: {
-      emit: (_channel: string, payload: unknown) => {
-        messages.push(payload as WidgetMessage);
+      emit: (channel: string, payload: unknown) => {
+        if (channel === "pi-fancy-footer:widget") {
+          messages.push(payload as WidgetMessage);
+        }
+        for (const listener of listeners.get(channel) ?? []) listener(payload);
       },
-      on: () => () => {},
+      on: (channel: string, listener: (payload: unknown) => void) => {
+        const channelListeners = listeners.get(channel) ?? new Set();
+        channelListeners.add(listener);
+        listeners.set(channel, channelListeners);
+        return () => channelListeners.delete(listener);
+      },
     },
   } as unknown as ExtensionAPI;
   return { pi, messages };
@@ -112,9 +121,11 @@ test("keeps the review-thread widget visible while watching without findings", (
   const { pi, messages } = fakePi();
   createFooterPublisher(pi).publish(state({ ...openPullRequest, watching: true }));
 
-  assert.ok(
-    messages.some((message) => message.widget?.id === "pi-pr.review-threads"),
-  );
+  const widget = messages.find(
+    (message) => message.widget?.id === "pi-pr.review-threads",
+  )?.widget;
+  assert.ok(widget);
+  assert.equal(widget.content.text, "");
 });
 
 test("publishes the CI widget only when a status exists", () => {
@@ -135,11 +146,78 @@ test("publishes the CI widget only when a status exists", () => {
     }),
   );
   const ci = messages.find((message) => message.widget?.id === "pi-pr.ci");
+  assert.equal(ci?.widget?.content.text, "");
   assert.equal(ci?.widget?.icon.color, "error");
   assert.equal(
     ci?.widget?.content.href,
     "https://github.com/acme/repo/actions/runs/1",
   );
+});
+
+test("omits invalid structured links without dropping widgets", () => {
+  const { pi, messages } = fakePi();
+  createFooterPublisher(pi).publish(
+    state({
+      ...openPullRequest,
+      target: { ...openPullRequest.target, url: "javascript:alert(1)" },
+      ci: { state: "running", url: "https://example.com/bad\nlink" },
+    }),
+  );
+
+  assert.equal(messages.length, 2);
+  assert.equal(messages[0]?.widget?.content.href, undefined);
+  assert.equal(messages[1]?.widget?.content.href, undefined);
+});
+
+test("dims widgets while GitHub state is degraded", () => {
+  const { pi, messages } = fakePi();
+  const degraded = {
+    ...state({
+      ...openPullRequest,
+      unresolvedThreadCount: 2,
+      ci: { state: "failed" as const, url: "https://example.com/check" },
+    }),
+    health: "error" as const,
+  };
+  createFooterPublisher(pi).publish(degraded);
+
+  assert.deepEqual(
+    messages.map((message) => message.widget?.icon.color),
+    ["dim", "dim", "dim"],
+  );
+});
+
+test("re-publishes state when the footer becomes ready", () => {
+  const { pi, messages } = fakePi();
+  const footer = createFooterPublisher(pi);
+  footer.publish(state(openPullRequest));
+  messages.length = 0;
+
+  pi.events.emit("pi-fancy-footer:ready", { protocol: 2 });
+  assert.equal(messages.length, 0);
+
+  pi.events.emit("pi-fancy-footer:ready", { protocol: 1 });
+  assert.equal(messages[0]?.widget?.id, "pi-pr.number");
+});
+
+test("clear and dispose stop ready re-publication", () => {
+  const cleared = fakePi();
+  const clearedFooter = createFooterPublisher(cleared.pi);
+  clearedFooter.publish(state(openPullRequest));
+  cleared.messages.length = 0;
+  clearedFooter.clear();
+  assert.equal(cleared.messages[0]?.type, "remove");
+  cleared.messages.length = 0;
+  cleared.pi.events.emit("pi-fancy-footer:ready", { protocol: 1 });
+  assert.equal(cleared.messages.length, 0);
+
+  const disposed = fakePi();
+  const disposedFooter = createFooterPublisher(disposed.pi);
+  disposedFooter.publish(state(openPullRequest));
+  disposed.messages.length = 0;
+  disposedFooter.dispose();
+  disposed.pi.events.emit("pi-fancy-footer:ready", { protocol: 1 });
+  assert.equal(disposed.messages.length, 0);
 });
 
 test("removes widgets that no longer apply", () => {
