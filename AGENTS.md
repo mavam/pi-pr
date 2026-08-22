@@ -1,6 +1,6 @@
-# pi-pr
+# pi-prs
 
-`pi-pr` watches GitHub pull requests and sends review feedback to pi.
+`pi-prs` watches GitHub pull requests and sends review feedback to pi.
 
 ## Setup
 

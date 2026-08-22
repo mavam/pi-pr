@@ -1,15 +1,15 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 /**
- * Public contract of pi-pr.
+ * Public contract of pi-prs.
  *
- * pi-pr is the single owner of GitHub polling in a Pi session. Other
+ * pi-prs is the single owner of GitHub polling in a Pi session. Other
  * extensions consume pull request state and review feedback from the event
  * bus instead of shelling out to `gh` themselves.
  */
 export const PI_PR_PROTOCOL = 1 as const;
-export const PI_PR_STATE_CHANNEL = "pi-pr:state";
-export const PI_PR_FEEDBACK_CHANNEL = "pi-pr:feedback";
+export const PI_PR_STATE_CHANNEL = "pi-prs:state";
+export const PI_PR_FEEDBACK_CHANNEL = "pi-prs:feedback";
 
 export interface PullRequestTarget {
   host: string;
@@ -43,7 +43,7 @@ export interface PullRequestSnapshot {
 /** Latest known GitHub state for the current checkout. */
 export interface PullRequestStateEvent {
   protocol: typeof PI_PR_PROTOCOL;
-  source: "pi-pr";
+  source: "pi-prs";
   /** `owner/name` of the resolved GitHub repository, or "" outside GitHub. */
   repository: string;
   branch: string;
@@ -73,7 +73,7 @@ export interface ReviewFeedback {
 /** Review feedback that the session has not seen yet. */
 export interface FeedbackEvent {
   protocol: typeof PI_PR_PROTOCOL;
-  source: "pi-pr";
+  source: "pi-prs";
   target: PullRequestTarget;
   feedback: ReviewFeedback[];
 }
@@ -88,7 +88,7 @@ export function isPullRequestStateEvent(
   return (
     isRecord(value) &&
     value.protocol === PI_PR_PROTOCOL &&
-    value.source === "pi-pr" &&
+    value.source === "pi-prs" &&
     typeof value.repository === "string" &&
     typeof value.branch === "string"
   );
@@ -98,7 +98,7 @@ export function isFeedbackEvent(value: unknown): value is FeedbackEvent {
   return (
     isRecord(value) &&
     value.protocol === PI_PR_PROTOCOL &&
-    value.source === "pi-pr" &&
+    value.source === "pi-prs" &&
     isRecord(value.target) &&
     Array.isArray(value.feedback)
   );

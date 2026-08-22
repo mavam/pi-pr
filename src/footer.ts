@@ -2,16 +2,16 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { PullRequestStateEvent } from "./api.ts";
 
 /**
- * pi-fancy-footer's widget protocol, mirrored here so that pi-pr stays
+ * pi-fancy-footer's widget protocol, mirrored here so that pi-prs stays
  * dependency-free. Keep in sync with `pi-fancy-footer/src/api.ts`.
  */
 const FANCY_FOOTER_PROTOCOL = 1;
 const WIDGET_CHANNEL = "pi-fancy-footer:widget";
 const READY_CHANNEL = "pi-fancy-footer:ready";
 
-const NUMBER_WIDGET_ID = "pi-pr.number";
-const THREADS_WIDGET_ID = "pi-pr.review-threads";
-const CI_WIDGET_ID = "pi-pr.ci";
+const NUMBER_WIDGET_ID = "pi-prs.number";
+const THREADS_WIDGET_ID = "pi-prs.review-threads";
+const CI_WIDGET_ID = "pi-prs.ci";
 
 type Glyphs = Record<"nerd" | "emoji" | "unicode" | "ascii", string>;
 

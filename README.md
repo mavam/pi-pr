@@ -1,4 +1,4 @@
-# 🐙 pi-pr
+# 🐙 pi-prs
 
 A [Pi](https://pi.dev) extension that owns GitHub pull request state for your
 session: footer widgets, review feedback, and watching.
@@ -14,7 +14,7 @@ the extension.
 
 ## ✨ Usage
 
-pi-pr resolves the pull request for the current branch on its own and keeps it
+pi-prs resolves the pull request for the current branch on its own and keeps it
 fresh in the background. Fork and upstream remotes both work, and switching
 branches re-resolves immediately.
 
@@ -39,13 +39,13 @@ Watching stops automatically when the pull request closes or merges.
 ## 🧩 Footer widgets
 
 When [pi-fancy-footer](https://github.com/mavam/pi-fancy-footer) is installed,
-pi-pr publishes the pull request number, unresolved review threads, and CI
+pi-prs publishes the pull request number, unresolved review threads, and CI
 status. You can change their placement, visibility, and colors with
 `/fancy-footer`.
 
 ## 🔌 Extension API
 
-pi-pr is the only extension that should poll GitHub in a session. Other
+pi-prs is the only extension that should poll GitHub in a session. Other
 extensions consume its state from the event bus instead of shelling out to
 `gh`:
 
@@ -63,7 +63,7 @@ export default function (pi) {
 }
 ```
 
-Publishing a `pi-pr:feedback` event yourself sends those findings to pi as a
+Publishing a `pi-prs:feedback` event yourself sends those findings to pi as a
 steering message.
 
 ## 🧰 Requirements

@@ -28,7 +28,7 @@ function isFeedbackSnapshot(
 }
 
 /**
- * Opinionated cadences. pi-pr is the only GitHub poller in a session, so these
+ * Opinionated cadences. pi-prs is the only GitHub poller in a session, so these
  * are deliberately conservative; configuration comes later.
  */
 const IDLE_INTERVAL_MS = 60_000;
@@ -109,7 +109,7 @@ export function createPoller(options: PollerOptions): Poller {
 
     state = {
       protocol: PI_PR_PROTOCOL,
-      source: "pi-pr",
+      source: "pi-prs",
       repository,
       branch,
       health,

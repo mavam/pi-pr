@@ -42,7 +42,7 @@ function state(
 ): PullRequestStateEvent {
   return {
     protocol: PI_PR_PROTOCOL,
-    source: "pi-pr",
+    source: "pi-prs",
     repository: "acme/repo",
     branch: "feature",
     health: "ok",
@@ -73,7 +73,7 @@ test("publishes the number widget with a structured link", () => {
 
   assert.equal(messages.length, 1);
   const widget = messages[0]?.widget;
-  assert.equal(widget?.id, "pi-pr.number");
+  assert.equal(widget?.id, "pi-prs.number");
   assert.equal(widget?.content.text, "7");
   assert.equal(widget?.content.href, openPullRequest.target.url);
   assert.deepEqual(widget?.layout, { row: 1, position: 3, align: "left" });
@@ -99,7 +99,7 @@ test("swaps the review-thread glyph while watching", () => {
   const footer = createFooterPublisher(pi);
 
   footer.publish(state({ ...openPullRequest, unresolvedThreadCount: 3 }));
-  const idle = messages.find((message) => message.widget?.id === "pi-pr.review-threads");
+  const idle = messages.find((message) => message.widget?.id === "pi-prs.review-threads");
   assert.match(idle?.widget?.content.text ?? "", /3/);
   assert.equal(idle?.widget?.icon.color, "text");
 
@@ -108,7 +108,7 @@ test("swaps the review-thread glyph while watching", () => {
     state({ ...openPullRequest, unresolvedThreadCount: 3, watching: true }),
   );
   const watching = messages.find(
-    (message) => message.widget?.id === "pi-pr.review-threads",
+    (message) => message.widget?.id === "pi-prs.review-threads",
   );
   assert.equal(watching?.widget?.icon.color, "accent");
   assert.notEqual(
@@ -122,7 +122,7 @@ test("keeps the review-thread widget visible while watching without findings", (
   createFooterPublisher(pi).publish(state({ ...openPullRequest, watching: true }));
 
   const widget = messages.find(
-    (message) => message.widget?.id === "pi-pr.review-threads",
+    (message) => message.widget?.id === "pi-prs.review-threads",
   )?.widget;
   assert.ok(widget);
   assert.equal(widget.content.text, "");
@@ -134,7 +134,7 @@ test("publishes the CI widget only when a status exists", () => {
 
   footer.publish(state(openPullRequest));
   assert.equal(
-    messages.some((message) => message.widget?.id === "pi-pr.ci"),
+    messages.some((message) => message.widget?.id === "pi-prs.ci"),
     false,
   );
 
@@ -145,7 +145,7 @@ test("publishes the CI widget only when a status exists", () => {
       ci: { state: "failed", url: "https://github.com/acme/repo/actions/runs/1" },
     }),
   );
-  const ci = messages.find((message) => message.widget?.id === "pi-pr.ci");
+  const ci = messages.find((message) => message.widget?.id === "pi-prs.ci");
   assert.equal(ci?.widget?.content.text, "");
   assert.equal(ci?.widget?.icon.color, "error");
   assert.equal(
@@ -197,7 +197,7 @@ test("re-publishes state when the footer becomes ready", () => {
   assert.equal(messages.length, 0);
 
   pi.events.emit("pi-fancy-footer:ready", { protocol: 1 });
-  assert.equal(messages[0]?.widget?.id, "pi-pr.number");
+  assert.equal(messages[0]?.widget?.id, "pi-prs.number");
 });
 
 test("clear and dispose stop ready re-publication", () => {
@@ -230,7 +230,7 @@ test("removes widgets that no longer apply", () => {
   footer.publish(state(undefined));
   assert.deepEqual(
     messages.filter((message) => message.type === "remove").map((m) => m.id),
-    ["pi-pr.number", "pi-pr.review-threads"],
+    ["pi-prs.number", "pi-prs.review-threads"],
   );
 });
 

@@ -30,7 +30,7 @@ export default async function (pi: ExtensionAPI) {
     onFeedback: (target, feedback) => {
       pi.events.emit(PI_PR_FEEDBACK_CHANNEL, {
         protocol: PI_PR_PROTOCOL,
-        source: "pi-pr",
+        source: "pi-prs",
         target,
         feedback,
       } satisfies FeedbackEvent);
@@ -39,7 +39,7 @@ export default async function (pi: ExtensionAPI) {
 
   registerFeedbackRenderer(pi);
 
-  // Any extension may publish review feedback on this channel; pi-pr turns it
+  // Any extension may publish review feedback on this channel; pi-prs turns it
   // into a steering message for the agent.
   const stopFeedbackListener = pi.events.on(PI_PR_FEEDBACK_CHANNEL, (raw) => {
     if (!sessionActive || !isFeedbackEvent(raw) || raw.feedback.length === 0) {

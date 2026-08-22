@@ -10,7 +10,7 @@ import {
   shortCommit,
 } from "./format.ts";
 
-export const FEEDBACK_MESSAGE_TYPE = "pi-pr-review-feedback";
+export const FEEDBACK_MESSAGE_TYPE = "pi-prs-review-feedback";
 
 export function registerFeedbackRenderer(pi: ExtensionAPI): void {
   pi.registerMessageRenderer<FeedbackEvent>(
