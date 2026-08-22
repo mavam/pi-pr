@@ -1,30 +1,33 @@
 ---
-title: Pull request review feedback and watching
+title: GitHub pull request state and review watching
 type: feature
 authors:
   - mavam
 created: 2026-08-22T06:06:26.90759Z
 ---
 
-Pi PR brings GitHub pull request feedback into the active Pi session. Run
-`/pr watch` to load unresolved feedback and poll every 30 seconds for new
-conversation comments, reviews, and inline findings. Feedback cards preserve
-the author, reviewed commit, file location, priority, links, and nearby diff
-context so Pi can address the review without losing its source details.
+Pi PR owns every GitHub interaction in a Pi session. A single poll loop
+resolves the pull request for the current branch, follows fork and upstream
+remotes, and tracks its draft, auto-merge, CI, and review-thread state. The
+loop refreshes every 60 seconds, drops to 30 seconds while watching, backs off
+when GitHub is unreachable, and re-resolves the pull request as soon as you
+switch branches.
 
-When pi-fancy-footer is installed, Pi PR owns the unresolved review-thread
-widget. Regular mode retains the familiar comment icon and thread count:
+Run `/pr watch` to load unresolved feedback into the session and stream new
+conversation comments, reviews, and inline findings as they arrive. Feedback
+cards preserve the author, reviewed commit, file location, priority, links, and
+nearby diff context so Pi can address the review without losing its source
+details. Use `/pr unwatch` to stop; watching also stops when the pull request
+closes or merges.
+
+When pi-fancy-footer is installed, Pi PR publishes three widgets: the pull
+request number, unresolved review threads, and CI status.
 
 ```text
-187  󰅺3
+ 7  󰅺3  
 ```
 
-Watching mode replaces the comment icon with a little accent-colored eye while
-keeping the count:
+Watching swaps the review-thread icon for an accent-colored eye.
 
-```text
-187  3
-```
-
-Use `/pr unwatch` to stop polling and restore the comment icon. Watching also
-stops when the pull request closes or merges.
+Other extensions can consume the same data without shelling out to `gh`:
+`pi-pr/api` exposes the `pi-pr:state` and `pi-pr:feedback` event contracts.

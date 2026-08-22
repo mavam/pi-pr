@@ -1,7 +1,7 @@
 # 👁️ pi-pr
 
-A [Pi](https://pi.dev) extension that watches GitHub pull requests and sends new
-review feedback to your active session.
+A [Pi](https://pi.dev) extension that owns GitHub pull request state for your
+session: footer widgets, review feedback, and watching.
 
 ## 🚀 Installation
 
@@ -14,15 +14,19 @@ the extension.
 
 ## ✨ Usage
 
-Start watching the pull request for the current branch:
+pi-pr resolves the pull request for the current branch on its own and keeps it
+fresh in the background. Fork and upstream remotes both work, and switching
+branches re-resolves immediately.
+
+Start watching that pull request for review feedback:
 
 ```text
 /pr watch
 ```
 
-The extension immediately sends unresolved review feedback to pi, then checks
-GitHub every 30 seconds for new comments and reviews. New external feedback
-starts an agent turn so pi can address it.
+The extension sends unresolved review feedback to pi, then checks GitHub every
+30 seconds for new comments and reviews. New external feedback starts an agent
+turn so pi can address it.
 
 Stop watching:
 
@@ -30,30 +34,57 @@ Stop watching:
 /pr unwatch
 ```
 
-Running `/pr` without an argument republishes the current footer widget when a
-watch is active. Watching stops automatically when the pull request closes or
-merges.
+Watching stops automatically when the pull request closes or merges.
 
-## 🧩 Footer widget
+## 🧩 Footer widgets
 
 When [pi-fancy-footer](https://github.com/mavam/pi-fancy-footer) is installed,
-`pi-pr` owns the unresolved review-thread widget after the pull request number.
-In regular mode, it uses the comment icon from pi-fancy-footer's former built-in
-widget:
+pi-pr publishes the pull request number, unresolved review threads, and CI
+status:
 
 ```text
-187  󰅺3
+ 7  󰅺3  
 ```
 
-While `/pr watch` is active, the eye replaces the comment icon:
+The pull request icon dims for drafts and turns accent-colored when auto-merge
+is enabled. While `/pr watch` is active, an eye replaces the review-thread
+icon:
 
 ```text
-187  3
+ 7  3  
 ```
 
-The widget ID is `pi-pr.review-threads`. It uses pi-fancy-footer's event protocol
-without taking a package dependency on the footer. You can change its placement,
-visibility, and colors with `/fancy-footer`.
+The widget IDs are `pi-pr.number`, `pi-pr.review-threads`, and `pi-pr.ci`. They
+use pi-fancy-footer's event protocol without taking a package dependency on the
+footer. You can change their placement, visibility, and colors with
+`/fancy-footer`.
+
+## 🔌 Extension API
+
+pi-pr is the only extension that should poll GitHub in a session. Other
+extensions consume its state from the event bus instead of shelling out to
+`gh`:
+
+```ts
+import { createPiPrClient } from "pi-pr/api";
+
+export default function (pi) {
+  const client = createPiPrClient(pi);
+  client.onState((state) => {
+    // state.pullRequest?.ci, .unresolvedThreadCount, .isDraft, …
+  });
+  client.onFeedback((event) => {
+    // event.feedback: new review findings
+  });
+}
+```
+
+Publishing a `pi-pr:feedback` event yourself sends those findings to pi as a
+steering message.
+
+## 🧰 Requirements
+
+- [GitHub CLI](https://cli.github.com/), authenticated with `gh auth login`
 
 ## 📄 License
 

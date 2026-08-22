@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseSnapshot } from "./index.ts";
+import { parseFeedbackSnapshot, parseThreadCountPage } from "./feedback.ts";
 
-test("parseSnapshot counts unresolved review threads once", () => {
+test("parseFeedbackSnapshot counts unresolved review threads once", () => {
   const response = {
     data: {
       viewer: { login: "mavam" },
@@ -49,7 +49,49 @@ test("parseSnapshot counts unresolved review threads once", () => {
     },
   };
 
-  const snapshot = parseSnapshot(response as never);
+  const snapshot = parseFeedbackSnapshot(response as never);
   assert.equal(snapshot?.unresolvedThreadCount, 2);
   assert.equal(snapshot?.openFeedback.length, 2);
+});
+
+test("parseFeedbackSnapshot reports the pull request lifecycle", () => {
+  const snapshot = parseFeedbackSnapshot({
+    data: {
+      repository: {
+        pullRequest: { state: "MERGED", comments: { nodes: [] } },
+      },
+    },
+  } as never);
+
+  assert.equal(snapshot?.lifecycle, "merged");
+});
+
+test("parseThreadCountPage counts unresolved threads and paginates", () => {
+  assert.deepEqual(
+    parseThreadCountPage(
+      JSON.stringify({
+        data: {
+          repository: {
+            pullRequest: {
+              state: "OPEN",
+              reviewThreads: {
+                pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+                nodes: [
+                  { isResolved: false },
+                  { isResolved: true },
+                  { isResolved: false },
+                ],
+              },
+            },
+          },
+        },
+      }),
+    ),
+    {
+      lifecycle: "open",
+      unresolvedCount: 2,
+      hasNextPage: true,
+      endCursor: "cursor-1",
+    },
+  );
 });
