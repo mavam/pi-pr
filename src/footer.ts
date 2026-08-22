@@ -1,6 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { PullRequestStateEvent } from "./api.ts";
-import { hyperlink } from "./format.ts";
 
 /**
  * pi-fancy-footer's widget protocol, mirrored here so that pi-pr stays
@@ -69,6 +68,7 @@ interface WidgetSpec {
   label: string;
   description: string;
   text: string;
+  href: string;
   glyphs: Glyphs;
   iconColor: "text" | "accent" | "muted" | "dim" | "success" | "warning" | "error";
   position: number;
@@ -90,7 +90,8 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       id: NUMBER_WIDGET_ID,
       label: "Pull request",
       description: "Shows the pull request for the current branch",
-      text: hyperlink(url, `${pullRequest.target.number}`),
+      text: `${pullRequest.target.number}`,
+      href: url,
       glyphs: GLYPHS.pullRequest,
       iconColor: pullRequest.isDraft
         ? "dim"
@@ -110,8 +111,9 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       description: "Shows unresolved review threads and active pull request watching",
       text:
         pullRequest.unresolvedThreadCount > 0
-          ? hyperlink(url, `${pullRequest.unresolvedThreadCount}`)
+          ? `${pullRequest.unresolvedThreadCount}`
           : ICON_ONLY,
+      href: url,
       glyphs: pullRequest.watching ? GLYPHS.watching : GLYPHS.reviewThreads,
       iconColor: pullRequest.watching ? "accent" : "text",
       position: 4,
@@ -124,6 +126,7 @@ function widgetsFor(state: PullRequestStateEvent): WidgetSpec[] {
       label: "PR CI status",
       description: "Shows the CI status for the current pull request",
       text: ICON_ONLY,
+      href: pullRequest.ci.url,
       glyphs:
         pullRequest.ci.state === "failed"
           ? GLYPHS.ciFailed
@@ -172,7 +175,11 @@ export function createFooterPublisher(pi: ExtensionAPI): FooterPublisher {
           id: widget.id,
           label: widget.label,
           description: widget.description,
-          content: { type: "text", text: widget.text },
+          content: {
+            type: "text",
+            text: widget.text,
+            href: widget.href,
+          },
           icon: { glyphs: widget.glyphs, color: widget.iconColor },
           layout: { row: 1, position: widget.position, align: "left" },
         },

@@ -35,10 +35,16 @@ const IDLE_INTERVAL_MS = 60_000;
 const WATCH_INTERVAL_MS = 30_000;
 const MAX_BACKOFF_MS = 300_000;
 
+export interface PollerTimer {
+  set(callback: () => void, delay: number): unknown;
+  clear(handle: unknown): void;
+}
+
 export interface PollerOptions {
   pi: ExtensionAPI;
   onState: (state: PullRequestStateEvent) => void;
   onFeedback: (target: PullRequestTarget, feedback: ReviewFeedback[]) => void;
+  timers?: PollerTimer;
 }
 
 export interface WatchResult {
@@ -59,10 +65,14 @@ export interface Poller {
 
 export function createPoller(options: PollerOptions): Poller {
   const { pi, onState, onFeedback } = options;
+  const timers: PollerTimer = options.timers ?? {
+    set: (callback, delay) => setTimeout(callback, delay),
+    clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+  };
 
   let active = false;
   let cwd = process.cwd();
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: unknown;
   let cycleRunning = false;
   let failures = 0;
 
@@ -79,6 +89,8 @@ export function createPoller(options: PollerOptions): Poller {
     discovered = undefined;
     watching = false;
     seen = new Set<string>();
+    ciStatus = undefined;
+    unresolvedThreadCount = 0;
   };
 
   const publish = (health: PullRequestHealth): void => {
@@ -109,14 +121,14 @@ export function createPoller(options: PollerOptions): Poller {
 
   const schedule = (health: PullRequestHealth): void => {
     if (!active) return;
-    if (timer) clearTimeout(timer);
+    if (timer) timers.clear(timer);
 
     const base = watching ? WATCH_INTERVAL_MS : IDLE_INTERVAL_MS;
     const delay =
       health === "ok"
         ? base
         : Math.min(base * 2 ** Math.min(failures, 5), MAX_BACKOFF_MS);
-    timer = setTimeout(() => {
+    timer = timers.set(() => {
       void cycle();
     }, delay);
   };
@@ -145,23 +157,29 @@ export function createPoller(options: PollerOptions): Poller {
         return;
       }
 
-      if (!discovered) {
-        const result = await discoverPullRequest(pi, pollCwd, branch);
-        if (!active || pollCwd !== cwd) return;
-        repository = result.repository;
-        discovered = result.pullRequest;
-        if (!discovered) {
-          ciStatus = undefined;
-          unresolvedThreadCount = 0;
-          const health: PullRequestHealth = result.authFailed
-            ? "unauthenticated"
-            : "ok";
-          failures = result.authFailed ? failures + 1 : 0;
-          publish(health);
-          schedule(health);
-          return;
-        }
+      const result = await discoverPullRequest(pi, pollCwd, branch);
+      if (!active || pollCwd !== cwd) return;
+      repository = result.repository;
+      if (result.authFailed || result.failed) {
+        failures += 1;
+        const health: PullRequestHealth = result.authFailed
+          ? "unauthenticated"
+          : "error";
+        publish(health);
+        schedule(health);
+        return;
       }
+
+      const nextPullRequest = result.pullRequest;
+      if (!nextPullRequest) {
+        clearTarget();
+        failures = 0;
+        publish("ok");
+        schedule("ok");
+        return;
+      }
+      if (discovered?.target.url !== nextPullRequest.target.url) clearTarget();
+      discovered = nextPullRequest;
 
       const target = discovered.target;
       const [ci, threads] = await Promise.all([
@@ -222,7 +240,7 @@ export function createPoller(options: PollerOptions): Poller {
     },
     stop: () => {
       active = false;
-      if (timer) clearTimeout(timer);
+      if (timer) timers.clear(timer);
       timer = undefined;
       clearTarget();
       state = undefined;
@@ -235,28 +253,36 @@ export function createPoller(options: PollerOptions): Poller {
     },
     watch: async (nextCwd) => {
       active = true;
+      const cwdChanged = cwd !== nextCwd;
       cwd = nextCwd;
 
       const nextBranch = await currentBranch(pi, nextCwd);
       if (!nextBranch) {
         return { ok: false, error: "No branch is checked out" };
       }
-      if (nextBranch !== branch) {
+      if (nextBranch !== branch || cwdChanged) {
         branch = nextBranch;
         clearTarget();
       }
 
-      if (!discovered) {
-        const result = await discoverPullRequest(pi, nextCwd, branch);
-        repository = result.repository;
-        discovered = result.pullRequest;
+      const result = await discoverPullRequest(pi, nextCwd, branch);
+      repository = result.repository;
+      if (result.authFailed || result.failed) {
+        return {
+          ok: false,
+          error: result.authFailed
+            ? "GitHub authentication failed; run gh auth login"
+            : "Failed to resolve the current pull request from GitHub",
+        };
       }
-      if (!discovered) {
+      if (!result.pullRequest) {
         return {
           ok: false,
           error: "No pull request found for the current branch",
         };
       }
+      if (discovered?.target.url !== result.pullRequest.target.url) clearTarget();
+      discovered = result.pullRequest;
       if (discovered.lifecycle !== "open") {
         return { ok: false, error: `The pull request is ${discovered.lifecycle}` };
       }

@@ -31,6 +31,7 @@ export interface DiscoveryResult {
   repository: string;
   pullRequest: DiscoveredPullRequest | undefined;
   authFailed: boolean;
+  failed: boolean;
 }
 
 interface GitHubRemote {
@@ -341,7 +342,14 @@ export async function discoverPullRequest(
   cwd: string,
   branch: string,
 ): Promise<DiscoveryResult> {
-  if (!branch) return { repository: "", pullRequest: undefined, authFailed: false };
+  if (!branch) {
+    return {
+      repository: "",
+      pullRequest: undefined,
+      authFailed: false,
+      failed: false,
+    };
+  }
 
   const [upstream, remoteUrls] = await Promise.all([
     git(pi, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd),
@@ -350,10 +358,17 @@ export async function discoverPullRequest(
 
   const context = createRepositoryContext(remoteUrls, upstream);
   if (!context.plan) {
-    return { repository: context.repository, pullRequest: undefined, authFailed: false };
+    return {
+      repository: context.repository,
+      pullRequest: undefined,
+      authFailed: false,
+      failed: false,
+    };
   }
 
   let authFailed = false;
+  let failed = false;
+  let lookupSucceeded = false;
   for (const baseRepository of context.plan.baseRepositories) {
     const result = await gh(
       pi,
@@ -373,8 +388,12 @@ export async function discoverPullRequest(
       ],
       cwd,
     );
-    if (isAuthFailure(result)) authFailed = true;
-    if (result.code !== 0 || !result.stdout) continue;
+    if (result.code !== 0 || !result.stdout) {
+      if (isAuthFailure(result)) authFailed = true;
+      else failed = true;
+      continue;
+    }
+    lookupSucceeded = true;
 
     const pullRequest = selectPullRequestFromGraphQL(
       result.stdout,
@@ -382,7 +401,12 @@ export async function discoverPullRequest(
       baseRepository.host,
     );
     if (pullRequest) {
-      return { repository: context.repository, pullRequest, authFailed: false };
+      return {
+        repository: context.repository,
+        pullRequest,
+        authFailed: false,
+        failed: false,
+      };
     }
   }
 
@@ -392,13 +416,25 @@ export async function discoverPullRequest(
     cwd,
   );
   if (isAuthFailure(fallback)) authFailed = true;
+  const pullRequest =
+    fallback.code === 0 && fallback.stdout
+      ? parsePullRequestView(fallback.stdout)
+      : undefined;
+  if (pullRequest) {
+    return {
+      repository: context.repository,
+      pullRequest,
+      authFailed: false,
+      failed: false,
+    };
+  }
+  if (fallback.code === 0 && !pullRequest) failed = true;
+  if (fallback.code !== 0 && !lookupSucceeded && !authFailed) failed = true;
 
   return {
     repository: context.repository,
-    pullRequest:
-      fallback.code === 0 && fallback.stdout
-        ? parsePullRequestView(fallback.stdout)
-        : undefined,
+    pullRequest: undefined,
     authFailed,
+    failed,
   };
 }

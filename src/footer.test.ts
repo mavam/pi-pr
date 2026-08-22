@@ -9,7 +9,7 @@ interface WidgetMessage {
   id?: string;
   widget?: {
     id: string;
-    content: { text: string };
+    content: { text: string; href?: string };
     icon: { glyphs: Record<string, string>; color: string };
     layout: { row: number; position: number };
   };
@@ -58,15 +58,15 @@ const openPullRequest = {
   watching: false,
 };
 
-test("publishes the number widget with a terminal hyperlink", () => {
+test("publishes the number widget with a structured link", () => {
   const { pi, messages } = fakePi();
   createFooterPublisher(pi).publish(state(openPullRequest));
 
   assert.equal(messages.length, 1);
   const widget = messages[0]?.widget;
   assert.equal(widget?.id, "pi-pr.number");
-  assert.match(widget?.content.text ?? "", /\u001b\]8;;https:\/\/github\.com/);
-  assert.match(widget?.content.text ?? "", /7/);
+  assert.equal(widget?.content.text, "7");
+  assert.equal(widget?.content.href, openPullRequest.target.url);
   assert.deepEqual(widget?.layout, { row: 1, position: 3, align: "left" });
 });
 
@@ -136,6 +136,10 @@ test("publishes the CI widget only when a status exists", () => {
   );
   const ci = messages.find((message) => message.widget?.id === "pi-pr.ci");
   assert.equal(ci?.widget?.icon.color, "error");
+  assert.equal(
+    ci?.widget?.content.href,
+    "https://github.com/acme/repo/actions/runs/1",
+  );
 });
 
 test("removes widgets that no longer apply", () => {
